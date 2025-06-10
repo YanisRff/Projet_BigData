@@ -1,6 +1,10 @@
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
+library(skimr)
 library(dplyr)
 View(data)
+
+###Description du jeu de données
+skim(data)
 
 ### Gestion des doublons
 doublon <- function(data) {
