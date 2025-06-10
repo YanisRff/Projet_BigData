@@ -1,5 +1,11 @@
-data <- read.csv("~/Documents/Cours_A3/projet_a3_bd/Projet_BigData/vessel-total-clean.csv")
+install.packages(c("skimr","dplyr","ggplot2", "sf", "maps"))
+library(skimr)
 library(dplyr)
+library(ggplot2)
+library(sf)
+library(maps)
+
+data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 View(data)
 data <- vessel.total.clean
 data[data == "\\N"]<- NA
@@ -9,6 +15,13 @@ View(data)
 
 
 
+
+###Description du jeu de données
+head(data)
+str(data)
+summary(data)
+
+skim(data)
 
 ### Gestion des doublons
 doublon <- function(data) {
@@ -34,20 +47,48 @@ doublon <- function(data) {
 data_clean <- doublon(data = data)
 
 ###Gestion des valeurs manquantes
-supprime_lignes_incompletes <- function(vessel.total.clean) {
-  vessel.total.clean <- as.data.frame(lapply(vessel.total.clean, function(col) {
+
+nettoyer_données <- function(data, methode = "moy") {
+  #1- remplace les \N ou \n par NA 
+  data <- as.data.frame(lapply(data, function(col) {
     if (is.character(col)) {
       # Remplace les cellules contenant \N ou \n par NA
       col[grepl("\\\\N", col) | grepl("\n", col)] <- NA  
     }
     return(col)
   }))
-  print(rowSums(is.na(vessel.total.clean)))  # Affiche le nombre de NA par ligne
-  data_sans_na <- vessel.total.clean[complete.cases(vessel.total.clean), ]  # Supprime les lignes avec NA
-  return(data_sans_na)
+  #2- supprime les NA dans IMO
+  data <- data[!is.na(data$IMO) & !is.na(data$callsign), ]
+  
+  #3 remplace les NA dans width, draft et cargo par la moyenne ou la mediane
+  if(methode == "moy"){
+    if("width" %in% names(data)){
+      data$width <- as.numeric(data$width)
+      data$width[is.na(data$width)] <- mean(data$width, na.rm = TRUE)
+    }
+    if("draft" %in% names(data)){
+      data$draft <- as.numeric(data$draft)
+      data$draft[is.na(data$draft)] <- mean(data$draft, na.rm = TRUE)
+    }
+    if("cargo" %in% names(data)){
+      data$cargo <- as.numeric(data$cargo)
+      data$cargo[is.na(data$cargo)] <- 70
+    }
+    med_cargo <- median(data$cargo[!is.na(data$cargo) & data$cargo != 0 & data$cargo !=99, na.rm = TRUE])
+    #1er remplacement
+    condition1 <- data$vesseltype <=60 &(is.na(data$cargo) | data$cargo %in% c(0, 99))
+    data$cargo[condition1] <- med_cargo
+    
+    #2eme condition
+    condition2<- data$vesseltype > 61 & is.na(data$cargo)
+    data$cargo[condition2] <- med_cargo
+  }else{
+    stop("la methode doit etre 'moy' (moyenne) ")
+  }
+  return(data_nettoyer)
 }
-result <- supprime_lignes_incompletes(vessel.total.clean)
-vessel.total.clean
+data_nettoyer <- nettoyer_données(data)
+
 
 ###Gestion des aberrations
 n <- nrow(data)
@@ -98,3 +139,18 @@ val_aber(data)
 print(nrow(data_filtered))
 
 
+
+
+###Affichage graphiques
+
+###Affichage map
+draw_traj <- function(data) {
+  MMSI_list <- unique(data$MMSI)
+  MMSI_vect <- unlist(MMSI_list)
+  data_new <- subset(data, MMSI == MMSI_vect[1])
+  
+  for(i in 2:n){
+    
+  }
+}
+print(draw_traj(data = data))
