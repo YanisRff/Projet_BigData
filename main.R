@@ -4,6 +4,10 @@ library(dplyr)
 View(data)
 
 ###Description du jeu de données
+head(data)
+str(data)
+summary(data)
+
 skim(data)
 
 ### Gestion des doublons
