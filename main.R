@@ -1,6 +1,11 @@
-data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
+install.packages(c("skimr","dplyr","ggplot2", "sf", "maps"))
 library(skimr)
 library(dplyr)
+library(ggplot2)
+library(sf)
+library(maps)
+
+data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 View(data)
 
 ###Description du jeu de données
@@ -51,3 +56,18 @@ vessel.total.clean
 
 ###Gestion des aberrations
 
+
+
+###Affichage graphiques
+
+###Affichage map
+draw_traj <- function(data) {
+  MMSI_list <- unique(data$MMSI)
+  MMSI_vect <- unlist(MMSI_list)
+  data_new <- subset(data, MMSI == MMSI_vect[1])
+  
+  for(i in 2:n){
+    
+  }
+}
+print(draw_traj(data = data))
