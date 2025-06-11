@@ -1,9 +1,10 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps", "viridis"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
 library(shiny)
 library(maps)
+library(viridis)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 data[data == "\\N"]<-NA
@@ -136,34 +137,84 @@ sorted_data <- data %>% arrange(desc(BaseDateTime))
 
 world <- map_data("world")
 
+villes <- data.frame(
+  nom = c("San Antonio", "Houston", "Orlando", "Tampa", "Miami", "Havana", "Cancun", "Mérida"),
+  long = c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402),
+  lat = c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
+)
+
+get_ville_counts <- function(traj, villes, radius = 1) {
+  villes$nb_passages <- sapply(1:nrow(villes), function(i) {
+    sum(
+      abs(traj$LAT - villes$lat[i]) <= radius &
+        abs(traj$LON - villes$long[i]) <= radius
+    )
+  })
+  return(villes)
+}
+
+# UI
 ui <- fluidPage(
   titlePanel("Trajectoires des bateaux"),
   sidebarLayout(
     sidebarPanel(
       selectInput("mmsi", "Sélectionnez un bateau :", 
-                  choices = setNames(unique(sorted_data$MMSI), 
-                                     unique(sorted_data$VesselName)))
+                  choices = c("Tous les bateaux" = "all", 
+                              setNames(unique(sorted_data$MMSI), 
+                                       unique(sorted_data$VesselName)))),
+      radioButtons("carte_mode", "Type de carte :",
+                   choices = c("Dynamique" = "dynamic", "Fixe" = "fixed"),
+                   selected = "fixed"),
+      radioButtons("show_hotspots", "Afficher les points chauds :", 
+                   choices = c("Oui" = "yes", "Non" = "no"), 
+                   selected = "yes")
     ),
     mainPanel(
       plotOutput("trajPlot")
     )
   )
 )
+
+# Server
 server <- function(input, output) {
   output$trajPlot <- renderPlot({
-    traj <- sorted_data %>% filter(MMSI == input$mmsi)
+    traj <- if (input$mmsi == "all") sorted_data else sorted_data %>% filter(MMSI == input$mmsi)
     
-    lon_lim <- c(min(traj$LON) - 0.5, max(traj$LON) + 0.5) # Adjust the padding as needed
-    lat_lim <- c(min(traj$LAT) - 0.5, max(traj$LAT) + 0.5) # Adjust the padding as needed
-
-    ggplot() +
+    if (input$carte_mode == "dynamic") {
+      lon_lim <- c(min(traj$LON) - 0.5, max(traj$LON) + 0.5)
+      lat_lim <- c(min(traj$LAT) - 0.5, max(traj$LAT) + 0.5)
+    } else {
+      lon_lim <- c(-98, -78)
+      lat_lim <- c(20, 30)
+    }
+    
+    villes_compte <- get_ville_counts(traj, villes)
+    print(villes_compte)
+    
+    p <- ggplot() +
       geom_polygon(data = world, aes(x = long, y = lat, group = group), fill = "lightgray", color = "black") +
-      geom_path(data = traj, aes(x = LON, y = LAT), color = "blue", size = 1) +
-      geom_point(data = traj, aes(x = LON, y = LAT), color = "red") +
-      coord_quickmap(xlim = lon_lim, ylim = lat_lim) + # This will zoom to the specified limits
-      labs(title = paste("Trajectoire de", unique(traj$VesselName)),
-           x = "Longitude", y = "Latitude") +
-      theme_minimal()
+      geom_line(data = traj, aes(x = LON, y = LAT, group = MMSI, color = factor(MMSI)), size = 0.7) + 
+      scale_color_viridis_d(option = "plasma") +
+      geom_point(data = traj, aes(x = LON, y = LAT), color = "red", alpha = 0.5) +
+      coord_quickmap(xlim = lon_lim, ylim = lat_lim) +
+      labs(title = ifelse(input$mmsi == "all", 
+                          "Trajectoires de tous les bateaux", 
+                          paste("Trajectoire de", unique(traj$VesselName))),
+           x = "Longitude", y = "Latitude", size = "Passages", color = "Passages") +
+      theme_minimal() +
+      guides(color = guide_legend(nrow = 3, byrow = TRUE))+ 
+      theme(legend.position = "bottom", legend.box = "horizontal")
+    
+    if (input$show_hotspots == "yes") {
+      print(villes_compte)
+      p <- p +
+        geom_point(data = villes_compte, aes(x = long, y = lat, size = nb_passages), shape = 21, fill = "orange") +
+        geom_text(data = villes_compte, aes(x = long, y = lat, label = nom), nudge_y = 0.5, size = 3, fontface = "bold") +
+        geom_text(data = villes_compte, aes(x = long, y = lat, size = nb_passages*0.0001, label = nb_passages), nudge_y = 0, size = 3, fontface = "bold") +
+        scale_size_continuous(range = c(6, 14))
+    }
+    p
   })
 }
+
 shinyApp(ui = ui, server = server)
