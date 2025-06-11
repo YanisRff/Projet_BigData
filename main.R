@@ -7,7 +7,6 @@ library(maps)
 library(viridis)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
-data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
 
@@ -146,13 +145,17 @@ villes <- data.frame(
 
 get_ville_counts <- function(traj, villes, radius = 1) {
   villes$nb_passages <- sapply(1:nrow(villes), function(i) {
-    sum(
-      abs(traj$LAT - villes$lat[i]) <= radius &
-        abs(traj$LON - villes$long[i]) <= radius
-    )
+    ville_lat <- villes$lat[i]
+    ville_long <- villes$long[i]
+    
+    traj %>%
+      filter(abs(LAT - ville_lat) <= radius, abs(LON - ville_long) <= radius) %>%
+      distinct(MMSI) %>%     # on garde un seul passage par bateau
+      nrow()
   })
   return(villes)
 }
+
 
 # UI
 ui <- fluidPage(
@@ -160,9 +163,14 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       selectInput("mmsi", "Sélectionnez un bateau :", 
-                  choices = c("Tous les bateaux" = "all", 
-                              setNames(unique(sorted_data$MMSI), 
-                                       unique(sorted_data$VesselName)))),
+                  choices = {
+                    noms_mmsi <- sorted_data %>%
+                      select(VesselName, MMSI) %>%
+                      distinct() %>%
+                      arrange(VesselName)   # sort alphabetically by VesselName
+                    
+                    c("Tous les bateaux" = "all", setNames(noms_mmsi$MMSI, noms_mmsi$VesselName))
+                  }),
       radioButtons("carte_mode", "Type de carte :",
                    choices = c("Dynamique" = "dynamic", "Fixe" = "fixed"),
                    selected = "fixed"),
@@ -218,11 +226,8 @@ server <- function(input, output) {
   })
 }
 
-shinyApp(ui = ui, server = server)
-
 
 ### TEST
-data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
 print(nrow(data))
@@ -234,3 +239,7 @@ print(med(aber))
 med <- med(aber)
 nettoy <- nettoyer_données(aber)
 print(nrow(nettoy))
+
+
+shinyApp(ui = ui, server = server)
+
