@@ -6,8 +6,11 @@ library(shiny)
 library(maps)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
+data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
+
+
 
 ###Description du jeu de données
 head(data)
@@ -37,86 +40,78 @@ doublon <- function(data) {
   return(data_unique)
 }
 
-data_clean <- doublon(data = data)
+
 
 ###Gestion des valeurs manquantes
-nettoyer_données <- function(data, methode = "moy") {
-  #1- remplace les \N ou \n par NA 
-  data <- as.data.frame(lapply(data, function(col) {
-    if (is.character(col)) {
-      # Remplace les cellules contenant \N ou \n par NA
-      col[grepl("\\N", col) | grepl("\n", col)] <- NA
-    }
-    return(col)
-  }))
-  #2- supprime les NA dans IMO
-  data <- data[!is.na(data$IMO) & !is.na(data$callsign), ]
+nettoyer_données <- function(data) {
 
   #3 remplace les NA dans width, draft et cargo par la moyenne ou la mediane
-  if(methode == "moy"){
-    if("width" %in% names(data)){
-      data$width <- as.numeric(data$width)
-      data$width[is.na(data$width)] <- mean(data$width, na.rm = TRUE)
-    }
-    if("draft" %in% names(data)){
-      data$draft <- as.numeric(data$draft)
-      data$draft[is.na(data$draft)] <- mean(data$draft, na.rm = TRUE)
-    }
-    if("cargo" %in% names(data)){
-      data$cargo <- as.numeric(data$cargo)
-      data$cargo[is.na(data$cargo)] <- 70
-    }
-    med_cargo <- median(data$cargo[!is.na(data$cargo) & data$cargo != 0 & data$cargo !=99, na.rm = TRUE])
-    #1er remplacement
-    condition1 <- data$vesseltype <=60 &(is.na(data$cargo) | data$cargo %in% c(0, 99))
-    data$cargo[condition1] <- med_cargo
-
-    #2eme condition
-    condition2<- data$vesseltype > 61 & is.na(data$cargo)
-    data$cargo[condition2] <- med_cargo
-  }else{
-    stop("la methode doit etre 'moy' (moyenne) ")
-  }
-  return(data_nettoyer)
+  data$Width[is.na(data$Width)  & data$VesselType <60] <- med$moy_d_50
+  data$Width[is.na(data$Width)  & data$VesselType >= 60 & data$VesselType <= 69] <- med$moy_d_60
+  data$Width[is.na(data$Width)  & data$VesselType >= 70 & data$VesselType <= 79] <- med$moy_d_70
+  data$Width[is.na(data$Width)  & data$VesselType >= 80 & data$VesselType <= 89] <- med$moy_d_80
+  
+  data$Draft[is.na(data$Draft)  & data$VesselType<60] <- med$moy_w_50
+  data$Draft[is.na(data$Draft)  & data$VesselType >= 60 & data$VesselType <= 69] <- med$moy_w_60
+  data$Draft[is.na(data$Draft)  & data$VesselType >= 70 & data$VesselType <= 79] <- med$moy_w_70
+  data$Draft[is.na(data$Draft)  & data$VesselType >= 80 & data$VesselType <= 89] <- med$moy_w_80
+  
+  data$Cargo[is.na(data$Cargo)  & data$VesselType >= 60 & data$VesselType <= 69] <- med$med_cargo1
+  data$Cargo[is.na(data$Cargo)  & data$VesselType >= 70 & data$VesselType <= 79] <- med$med_cargo2
+  data$Cargo[is.na(data$Cargo)  & data$VesselType >= 80 & data$VesselType <= 89] <- med$med_cargo3
+  
+  return(data)
 }
-data_nettoyer <- nettoyer_données(data)
+
 
 ###Gestion des aberrations
 n <- nrow(data)
 
 
+med <- function(data) {
+  # met en numerique
+  data$Cargo <- as.numeric(as.character(data$Cargo))
+  data$Width <- as.numeric(as.character(data$Width))
+  data$Draft <- as.numeric(as.character(data$Draft))
+  
+  # mediane cargo selon type 
+  data$Cargo[data$Cargo == 0 & data$VesselType >= 60 & data$VesselType <= 69] <- NA
+  data$Cargo[data$Cargo == 99 & data$VesselType >= 60 & data$VesselType <= 69] <- NA
+  med_cargo1 <- median(data$Cargo[data$VesselType >= 60 & data$VesselType <= 69], na.rm = TRUE)
 
-#mediane des cargo selon les type de bateau
-data$Cargo <- as.numeric(data$Cargo)
-data$Cargo[data$Cargo == 0 & data$VesselType >=60 & data$VesselType <=69]<- NA
-data$Cargo[data$Cargo == 99 & data$VesselType >=60 & data$VesselType <=69]<- NA
-median(data$Cargo[data$VesselType>=60 & data$VesselType<=69],na.rm=TRUE)
+  med_cargo2 <- median(data$Cargo[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
+  
+  med_cargo3 <- median(data$Cargo[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
+  
+  # moyenne width selon type 
+  moy_w_50 <- mean(data$Width[data$VesselType < 60], na.rm = TRUE)
+  moy_w_60 <- mean(data$Width[data$VesselType >= 60 & data$VesselType <= 69], na.rm = TRUE)
+  moy_w_70 <- mean(data$Width[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
+  moy_w_80 <- mean(data$Width[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
+  
+  # moyenne draft selon type 
+  moy_d_50 <- mean(data$Draft[data$VesselType < 60], na.rm = TRUE)
+  moy_d_60 <- mean(data$Draft[data$VesselType >= 60 & data$VesselType <= 69], na.rm = TRUE)
+  moy_d_70 <- mean(data$Draft[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
+  moy_d_80 <- mean(data$Draft[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
+  
+  
+  list(
+    med_cargo1 = med_cargo1,
+    med_cargo2 = med_cargo2,
+    med_cargo3 = med_cargo3,
+    moy_w_50 = moy_w_50,
+    moy_w_60 = moy_w_60,
+    moy_w_70 = moy_w_70,
+    moy_w_80 = moy_w_80,
+    moy_d_50 = moy_d_50,
+    moy_d_60 = moy_d_60,
+    moy_d_70 = moy_d_70,
+    moy_d_80 = moy_d_80
+  )
+}
+ 
 
-data$Cargo[data$Cargo == 0 & data$VesselType >=80 & data$VesselType<=89]<- NA
-data$Cargo[data$Cargo == 99 & data$VesselType >=80 & data$VesselType<=89]<- NA
-median(data$Cargo[data$VesselType>=80 & data$VesselType<=89],na.rm=TRUE)
-
-#mediane des width
-
-data$Width <- as.numeric(data$Width)
-mean(data$Width[data$Width<60],na.rm=TRUE)
-
-mean(data$Width[data$Width>=60 & data$Width<=69],na.rm=TRUE)
-
-mean(data$Width[data$Width>=70 & 79],na.rm=TRUE)
-
-mean(data$Width[data$Width>=80 & 89],na.rm=TRUE)
-
-#mediane des draft
-
-data$Draft <- as.numeric(data$Draft)
-mean(data$Draft[data$Draft<60],na.rm=TRUE)
-
-mean(data$Draft[data$Draft>=60 & data$Draft<=69],na.rm=TRUE)
-
-mean(data$Draft[data$Draft>=70 & 79],na.rm=TRUE)
-
-mean(data$Draft[data$Draft>=80 & 89],na.rm=TRUE)
 
 val_aber <- function(data = data){
   n <- nrow(data)
@@ -124,10 +119,16 @@ val_aber <- function(data = data){
   #si le beateau n'est pas dans le golf, si vitesse = 0, si cap (reel et ideal) supérieur à 360, on enleve
   #subset -> donne condition sur df, si condition pas respecté, donnee non copié, marche comme un filtre
   data_filtered <- subset(data, LAT>=20 & LAT<=30 & LON>=(-98) & LON<=(-78) & Heading<360 & Draft>=0.5  & Width>=3 & Length >=10 & SOG <36)
-  data_filtered[data_filtered$Heading == 0 | data_filtered$SOG == 0 | data_filtered$COG == 0]<- 0
-  print(nrow(data_filtered))}
-val_aber(data)
-print(nrow(data_filtered))
+  for (i in 1:nrow(data_filtered)) {
+    if (data_filtered$Heading[i] == 0 | data_filtered$SOG[i] == 0 | data_filtered$COG[i] == 0) {
+      data_filtered$Heading[i] <- 0
+      data_filtered$SOG[i] <- 0
+      data_filtered$COG[i] <- 0
+      
+    }}
+  return(data_filtered)
+  }
+
 
 ###Affichage graphiques
 
@@ -167,3 +168,20 @@ server <- function(input, output) {
   })
 }
 shinyApp(ui = ui, server = server)
+
+
+### TEST
+data <- vessel.total.clean
+data[data == "\\N"]<-NA
+View(data)
+print(nrow(data))
+doublons<-doublon(data = data)
+aber <- val_aber(doublons)
+print(nrow(aber))
+View(aber)
+print(med(aber))
+med <- med(aber)
+nettoy <- nettoyer_données(aber)
+print(nrow(nettoy))
+
+
