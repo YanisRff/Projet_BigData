@@ -92,7 +92,7 @@ data_nettoyer <- nettoyer_données(data)
 
 ###Gestion des aberrations
 n <- nrow(data)
-#Mediane des cargo
+
 
 
 #mediane des cargo selon les type de bateau
