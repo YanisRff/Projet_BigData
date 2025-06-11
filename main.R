@@ -134,53 +134,6 @@ val_aber <- function(data = data){
 
 
 ###Affichage graphiques
-## histogramme par type de bateaux
-top_n <-10
-plot_data <- data_nettoyer %>%
-      group_by(VesselType) %>%
-      summarise(count = n()) %>% # compte le nbre de bateau par type
-      arrange(desc(count)) %>% # tri du + frequent au moins
-      slice_head(n = top_n) # affiche les 1ere categorie avec le + grand nbre
-    
-ggplot(plot_data, aes(x = reorder(VesselType, -count), y= count)) + 
-      geom_bar(stat = "identity", fill = "pink") + 
-      labs(title = paste("Top", top_n, "types de bateaux"), x= "Type des bateau", y= "Nombre d'observations") +
-      theme_minimal() + 
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-## histogramme par affluence des ports
-LON_ports <- c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402)
-LAT_ports <- c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
-
-# Crée un tableau des ports
-ports <- tibble(LAT = LAT_ports, LON = LON_ports)
-
-# Garder les lignes correspondant à ces coord avec tolerance de 0.05
-expanded <- data_nettoyer %>%
-  tidyr::crossing(ports, .name_repair = "unique")
-colnames(expanded)
-
-
-filtered_data <- expanded %>%
-  filter(abs(LAT - LAT1) < 0.05 & abs(LON - LON1) < 0.05) %>%
-  distinct(across(names(data_nettoyer)))
-
-
-#compte le nbre de bateaux
-plot_data <- filtered_data %>%
-  group_by(LAT, LON) %>%
-  summarise(nb_bateaux = n_distinct(MMSI), .groups = "drop") %>%
-  arrange(desc(nb_bateaux)) 
-  
-
-ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux)) +
-  geom_bar(stat = "identity", fill = "purple") +
-  labs(
-    title = "Ports les plus fréquentés(selon coord)", x= "Ports", y = "Nombre de bateaux uniques") +
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
- 
-
 
 ###Affichage map
 sorted_data <- data %>% arrange(desc(BaseDateTime))
@@ -288,7 +241,55 @@ print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
 
-
-
 shinyApp(ui = ui, server = server)
 
+plot_top_vessel_types_by_range <- function(data_nettoyer, top_n = 3) {
+  
+  data <- data_nettoyer %>%
+    mutate(VesselType_grouped = case_when(
+      VesselType >= 60 & VesselType <= 69 ~ "passenger",
+      VesselType >= 70 & VesselType <= 79 ~ "cargo",
+      VesselType >= 80 & VesselType <= 89 ~ "tanker",
+    ))
+  
+  plot_data <- data %>%
+    group_by(VesselType_grouped) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    arrange(desc(count)) %>%
+    slice_head(n = top_n)
+  
+  ggplot(plot_data, aes(x = reorder(VesselType_grouped, -count), y = count, fill = VesselType_grouped)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
+    labs(
+      title = paste("Top", top_n, "types de bateaux regroupés par plage VesselType"),x = "Type de bateau",y = "Nombre d'observations") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+}
+plot_top_vessel_types_by_range(data_nettoyer, top_n = 3)  
+
+#fonction pour camembert en fct des types
+plot_camembert <- function(data_nettoyer){
+  data <- data_nettoyer %>%
+    mutate(VesselType_grouped = case_when(
+      VesselType >= 60 & VesselType <= 69 ~ "passenger",
+      VesselType >= 70 & VesselType <= 79 ~ "cargo",
+      VesselType >= 80 & VesselType <= 89 ~ "tanker",
+    ))
+  camembert_data <- data%>%
+    group_by(VesselType_grouped) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    mutate(percentage = round(100 * count / sum(count), 1),
+           label = paste0(VesselType_grouped, " (", percentage, "%)"))
+  
+  ggplot(camembert_data, aes(x = "", y = count, fill = VesselType_grouped)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar("y", start = 0) +
+    scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
+    geom_text(aes(label = label), position = position_stack(vjust = 0.5)) +
+    labs(title = "Répartition des types de bateaux (camembert)", x = "", y = "") +
+    theme_void() + 
+    theme(legend.position = "none")
+
+}
+plot_camembert(data_nettoyer)
