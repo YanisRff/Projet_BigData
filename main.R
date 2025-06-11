@@ -1,20 +1,13 @@
-install.packages(c("skimr","dplyr","ggplot2", "sf", "maps"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
-library(sf)
+library(shiny)
 library(maps)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
+data[data == "\\N"]<-NA
 View(data)
-data <- vessel.total.clean
-data[data == "\\N"]<- NA
-View(data)
-
-
-
-
-
 
 ###Description du jeu de données
 head(data)
@@ -47,19 +40,18 @@ doublon <- function(data) {
 data_clean <- doublon(data = data)
 
 ###Gestion des valeurs manquantes
-
 nettoyer_données <- function(data, methode = "moy") {
   #1- remplace les \N ou \n par NA 
   data <- as.data.frame(lapply(data, function(col) {
     if (is.character(col)) {
       # Remplace les cellules contenant \N ou \n par NA
-      col[grepl("\\\\N", col) | grepl("\n", col)] <- NA  
+      col[grepl("\\N", col) | grepl("\n", col)] <- NA
     }
     return(col)
   }))
   #2- supprime les NA dans IMO
   data <- data[!is.na(data$IMO) & !is.na(data$callsign), ]
-  
+
   #3 remplace les NA dans width, draft et cargo par la moyenne ou la mediane
   if(methode == "moy"){
     if("width" %in% names(data)){
@@ -78,7 +70,7 @@ nettoyer_données <- function(data, methode = "moy") {
     #1er remplacement
     condition1 <- data$vesseltype <=60 &(is.na(data$cargo) | data$cargo %in% c(0, 99))
     data$cargo[condition1] <- med_cargo
-    
+
     #2eme condition
     condition2<- data$vesseltype > 61 & is.na(data$cargo)
     data$cargo[condition2] <- med_cargo
@@ -88,7 +80,6 @@ nettoyer_données <- function(data, methode = "moy") {
   return(data_nettoyer)
 }
 data_nettoyer <- nettoyer_données(data)
-
 
 ###Gestion des aberrations
 n <- nrow(data)
@@ -138,19 +129,41 @@ val_aber <- function(data = data){
 val_aber(data)
 print(nrow(data_filtered))
 
-
-
-
 ###Affichage graphiques
 
 ###Affichage map
-draw_traj <- function(data) {
-  MMSI_list <- unique(data$MMSI)
-  MMSI_vect <- unlist(MMSI_list)
-  data_new <- subset(data, MMSI == MMSI_vect[1])
-  
-  for(i in 2:n){
+sorted_data <- data %>% arrange(desc(BaseDateTime))
+
+world <- map_data("world")
+
+ui <- fluidPage(
+  titlePanel("Trajectoires des bateaux"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("mmsi", "Sélectionnez un bateau :", 
+                  choices = setNames(unique(sorted_data$MMSI), 
+                                     unique(sorted_data$VesselName)))
+    ),
+    mainPanel(
+      plotOutput("trajPlot")
+    )
+  )
+)
+server <- function(input, output) {
+  output$trajPlot <- renderPlot({
+    traj <- sorted_data %>% filter(MMSI == input$mmsi)
     
-  }
+    lon_lim <- c(min(traj$LON) - 0.5, max(traj$LON) + 0.5) # Adjust the padding as needed
+    lat_lim <- c(min(traj$LAT) - 0.5, max(traj$LAT) + 0.5) # Adjust the padding as needed
+
+    ggplot() +
+      geom_polygon(data = world, aes(x = long, y = lat, group = group), fill = "lightgray", color = "black") +
+      geom_path(data = traj, aes(x = LON, y = LAT), color = "blue", size = 1) +
+      geom_point(data = traj, aes(x = LON, y = LAT), color = "red") +
+      coord_quickmap(xlim = lon_lim, ylim = lat_lim) + # This will zoom to the specified limits
+      labs(title = paste("Trajectoire de", unique(traj$VesselName)),
+           x = "Longitude", y = "Latitude") +
+      theme_minimal()
+  })
 }
-print(draw_traj(data = data))
+shinyApp(ui = ui, server = server)
