@@ -119,16 +119,16 @@ med <- function(data) {
 val_aber <- function(data = data){
   n <- nrow(data)
   print(nrow(data))
-  #si le beateau n'est pas dans le golf, si vitesse = 0, si cap (reel et ideal) supérieur à 360, on enleve
+  
   #subset -> donne condition sur df, si condition pas respecté, donnee non copié, marche comme un filtre
-  data_filtered <- subset(data, LAT>=20 & LAT<=30 & LON>=(-98) & LON<=(-78) & Heading<360 & Draft>=0.5  & Width>=3 & Length >=10 & SOG <36)
-  for (i in 1:nrow(data_filtered)) {
-    if (data_filtered$Heading[i] == 0 | data_filtered$SOG[i] == 0 | data_filtered$COG[i] == 0) {
-      data_filtered$Heading[i] <- 0
-      data_filtered$SOG[i] <- 0
-      data_filtered$COG[i] <- 0
-      
-    }}
+  data_filtered <- subset(data,Draft>=0.5  & Width>=3 & Length >=10 & SOG <36)
+
+  data_filtered$SOG[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
+  data_filtered$COG[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
+  data_filtered$Heading[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
+  
+  
+  print(nrow(data_filtered))
   return(data_filtered)
   }
 
@@ -282,13 +282,12 @@ data[data == "\\N"]<-NA
 View(data)
 print(nrow(data))
 doublons<-doublon(data = data)
-aber <- val_aber(doublons)
-print(nrow(aber))
-View(aber)
-print(med(aber))
-med <- med(aber)
-nettoy <- nettoyer_donnees(aber)
+med <- med(doublons)
+nettoy <- nettoyer_données(doublons)
 print(nrow(nettoy))
+aber <- val_aber(nettoy)
+View(aber)
+
 
 
 shinyApp(ui = ui, server = server)
