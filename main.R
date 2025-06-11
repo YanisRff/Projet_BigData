@@ -1,11 +1,14 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
 library(shiny)
 library(maps)
+library(tibble)
+library(purrr)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
+data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
 
@@ -50,34 +53,34 @@ nettoyer_données <- function(data, methode = "moy") {
     return(col)
   }))
   #2- supprime les NA dans IMO
-  data <- data[!is.na(data$IMO) & !is.na(data$callsign), ]
+  data <- data[!is.na(data$IMO) & !is.na(data$CallSign), ]
 
   #3 remplace les NA dans width, draft et cargo par la moyenne ou la mediane
   if(methode == "moy"){
     if("width" %in% names(data)){
-      data$width <- as.numeric(data$width)
-      data$width[is.na(data$width)] <- mean(data$width, na.rm = TRUE)
+      data$Width <- as.numeric(data$Width)
+      data$Width[is.na(data$Width)] <- mean(data$Width, na.rm = TRUE)
     }
     if("draft" %in% names(data)){
-      data$draft <- as.numeric(data$draft)
-      data$draft[is.na(data$draft)] <- mean(data$draft, na.rm = TRUE)
+      data$Draft <- as.numeric(data$Draft)
+      data$Draft[is.na(data$Draft)] <- mean(data$Draft, na.rm = TRUE)
     }
     if("cargo" %in% names(data)){
-      data$cargo <- as.numeric(data$cargo)
-      data$cargo[is.na(data$cargo)] <- 70
+      data$Cargo <- as.numeric(data$Cargo)
+      data$Cargo[is.na(data$Cargo)] <- 70
     }
-    med_cargo <- median(data$cargo[!is.na(data$cargo) & data$cargo != 0 & data$cargo !=99, na.rm = TRUE])
+    med_cargo <- median(data$Cargo[!is.na(data$Cargo) & data$Cargo != 0 & data$Cargo !=99], na.rm = TRUE)
     #1er remplacement
-    condition1 <- data$vesseltype <=60 &(is.na(data$cargo) | data$cargo %in% c(0, 99))
-    data$cargo[condition1] <- med_cargo
+    condition1 <- data$VesselType <=60 &(is.na(data$Cargo) | data$Cargo %in% c(0, 99))
+    data$Cargo[condition1] <- med_cargo
 
     #2eme condition
-    condition2<- data$vesseltype > 61 & is.na(data$cargo)
-    data$cargo[condition2] <- med_cargo
+    condition2<- data$VesselType > 61 & is.na(data$Cargo)
+    data$Cargo[condition2] <- med_cargo
   }else{
     stop("la methode doit etre 'moy' (moyenne) ")
   }
-  return(data_nettoyer)
+  data
 }
 data_nettoyer <- nettoyer_données(data)
 
@@ -167,3 +170,52 @@ server <- function(input, output) {
   })
 }
 shinyApp(ui = ui, server = server)
+
+## histogramme par type de bateaux
+top_n <-10
+plot_data <- data_nettoyer %>%
+      group_by(VesselType) %>%
+      summarise(count = n()) %>% # compte le nbre de bateau par type
+      arrange(desc(count)) %>% # tri du + frequent au moins
+      slice_head(n = top_n) # affiche les 1ere categorie avec le + grand nbre
+    
+ggplot(plot_data, aes(x = reorder(VesselType, -count), y= count)) + 
+      geom_bar(stat = "identity", fill = "pink") + 
+      labs(title = paste("Top", top_n, "types de bateaux"), x= "Type des bateau", y= "Nombre d'observations") +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## histogramme par affluence des ports
+LON_ports <- c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402)
+LAT_ports <- c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
+
+# Crée un tableau des ports
+ports <- tibble(LAT = LAT_ports, LON = LON_ports)
+
+# Garder les lignes correspondant à ces coord avec tolerance de 0.05
+expanded <- data_nettoyer %>%
+  tidyr::crossing(ports, .name_repair = "unique")
+colnames(expanded)
+
+
+filtered_data <- expanded %>%
+  filter(abs(LAT - LAT1) < 0.05 & abs(LON - LON1) < 0.05) %>%
+  distinct(across(names(data_nettoyer)))
+
+
+#compte le nbre de bateaux
+plot_data <- filtered_data %>%
+  group_by(LAT, LON) %>%
+  summarise(nb_bateaux = n_distinct(MMSI), .groups = "drop") %>%
+  arrange(desc(nb_bateaux)) 
+  
+
+ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(
+    title = "Ports les plus fréquentés(selon coord)", x= "Ports", y = "Nombre de bateaux uniques") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+
+
