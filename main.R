@@ -180,6 +180,17 @@ ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux))
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
  
+##Affichage utilisation ports
+afficher_ports_top <- function(data,villes){
+  ports_count <- get_ville_counts(data, villes)
+  print(ports_count)
+  ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5)+
+    theme_minimal()
+  
+}
+
 
 
 ###Affichage map
@@ -288,6 +299,7 @@ print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
 
+afficher_ports_top(data = data, villes = villes)
 
 
 shinyApp(ui = ui, server = server)
