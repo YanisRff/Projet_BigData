@@ -77,6 +77,8 @@ med <- function(data) {
   data$Cargo <- as.numeric(as.character(data$Cargo))
   data$Width <- as.numeric(as.character(data$Width))
   data$Draft <- as.numeric(as.character(data$Draft))
+  data$Length <- as.numeric(as.character(data$Length))
+  
   
   # mediane cargo selon type 
   data$Cargo[data$Cargo == 0 & data$VesselType >= 60 & data$VesselType <= 69] <- NA
@@ -99,6 +101,14 @@ med <- function(data) {
   moy_d_70 <- mean(data$Draft[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
   moy_d_80 <- mean(data$Draft[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
   
+  #moyenne length selon type
+  
+  moy_l_60 <- mean(data$Length[data$VesselType>=60 & data$VesselType<=69], na.rm = TRUE)
+  moy_l_70 <- mean(data$Length[data$VesselType>=70 & data$VesselType<=79], na.rm = TRUE)
+  moy_l_80 <- mean(data$Length[data$VesselType>=80 & data$VesselType<=89], na.rm = TRUE)
+  
+
+  
   
   list(
     med_cargo1 = med_cargo1,
@@ -111,11 +121,13 @@ med <- function(data) {
     moy_d_50 = moy_d_50,
     moy_d_60 = moy_d_60,
     moy_d_70 = moy_d_70,
-    moy_d_80 = moy_d_80
+    moy_d_80 = moy_d_80,
+    moy_l_60 = moy_l_60,
+    moy_l_70 = moy_l_70,
+    moy_l_80 = moy_l_80
   )
 }
  
-
 
 val_aber <- function(data = data){
   n <- nrow(data)
@@ -301,13 +313,42 @@ ggcorrplot(mat_corr, lab=TRUE,hc.order = TRUE,
            ggtheme = ggplot2::theme_gray,
            colors = c("#6D9EFF", "white", "#E46726"), lab_size = 3, title = "Matrice de corrélation")
 
+###TEST ALEX
+
+Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
+print(Width_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
+  theme_minimal()
+
+Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
+print(Draft_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
+  geom_bar(stat="identity", fill="darkred")+
+  geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
+  theme_minimal()
+
+Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
+print(Length_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
+  theme_minimal()
+  
+
+
 ### TEST
+data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
 print(nrow(data))
 doublons<-doublon(data = data)
 med <- med(doublons)
-nettoy <- nettoyer_données(doublons)
+nettoy <- nettoyer_donnees(doublons)
 print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
