@@ -325,31 +325,35 @@ Regres <- function(data, data1, data2){
 
 
 ###TEST ALEX
+histo_VesselType_mean <- function(){
 
-Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
-print(Width_y)
-ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
-  geom_bar(stat="identity", fill="steelblue")+
-  geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-  labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
-  theme_minimal()
-
-Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
-print(Draft_y)
-ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
-  geom_bar(stat="identity", fill="steelblue")+
-  geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-  labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
-  theme_minimal()
-
-Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
-print(Length_y)
-ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
-  geom_bar(stat="identity", fill="steelblue")+
-  geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-  labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
-  theme_minimal()
+  #Histo VT and Width
+  Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
+  print(Width_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
+    theme_minimal()
   
+  #Histo VT and Draft
+  Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
+  print(Draft_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
+    theme_minimal()
+  
+  #Histo VT and Length
+  Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
+  print(Length_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
+    theme_minimal()
+}
 
 
 ### TEST
