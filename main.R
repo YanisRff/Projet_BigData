@@ -1,5 +1,7 @@
 install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot", "readr", "tidymodels", "glmnet"))
-init <- function(){
+
+###Init
+init_data <- function(){
   library(skimr)
   library(dplyr)
   library(ggplot2)
@@ -16,7 +18,16 @@ init <- function(){
   
   data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
   data[data == "\\N"]<-NA
+  
   return(data)
+}
+init_villes <- function(){
+  villes <- data.frame(
+    nom = c("San Antonio", "Houston", "Orlando", "Tampa", "Miami", "Havana", "Cancun", "Mérida"),
+    long = c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402),
+    lat = c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
+  )
+  return(villes)
 }
 
 ###Description du jeu de données
@@ -189,6 +200,18 @@ plot_camembert <- function(data_nettoyer){
 }
 
 ##Affichage utilisation ports
+get_ville_counts <- function(traj, villes, radius = 1) {
+  villes$nb_passages <- sapply(1:nrow(villes), function(i) {
+    ville_lat <- villes$lat[i]
+    ville_long <- villes$long[i]
+    
+    traj %>%
+      filter(abs(LAT - ville_lat) <= radius, abs(LON - ville_long) <= radius) %>%
+      distinct(MMSI) %>%     # on garde un seul passage par bateau
+      nrow()
+  })
+  return(villes)
+}
 afficher_ports_top <- function(data,villes){
   ports_count <- get_ville_counts(data, villes)
   print(ports_count)
@@ -200,31 +223,42 @@ afficher_ports_top <- function(data,villes){
   
 }
 
-##Affichage map
-map_init <- function(data){
+##histogrammes lien
+histo_VesselType_mean <- function(med){
+  
+  #Histo VT and Width
+  Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
+  print(Width_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
+    theme_minimal()
+  
+  #Histo VT and Draft
+  Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
+  print(Draft_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
+    theme_minimal()
+  
+  #Histo VT and Length
+  Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
+  print(Length_y)
+  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+    labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
+    theme_minimal()
+}
+
+###Affichage map
+map_init <- function(data, villes){
   sorted_data <- data %>% arrange(desc(BaseDateTime))
   
   world <- map_data("world")
-  
-  villes <- data.frame(
-    nom = c("San Antonio", "Houston", "Orlando", "Tampa", "Miami", "Havana", "Cancun", "Mérida"),
-    long = c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402),
-    lat = c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
-  )
-  
-  get_ville_counts <- function(traj, villes, radius = 1) {
-    villes$nb_passages <- sapply(1:nrow(villes), function(i) {
-      ville_lat <- villes$lat[i]
-      ville_long <- villes$long[i]
-      
-      traj %>%
-        filter(abs(LAT - ville_lat) <= radius, abs(LON - ville_long) <= radius) %>%
-        distinct(MMSI) %>%     # on garde un seul passage par bateau
-        nrow()
-    })
-    return(villes)
-  }
-  
   
   # UI
   ui <- fluidPage(
@@ -294,6 +328,7 @@ map_init <- function(data){
       p
     })
   }
+  shinyApp(ui = ui, server = server)
 }
 
 ###Etude des corrélations
@@ -310,77 +345,15 @@ corr_mat <- function(data){
              colors = c("#6D9EFF", "white", "#E46726"), lab_size = 3, title = "Matrice de corrélation")
 }
 
-### Regress Linear & Correlation
-
+##Regress Linear & Correlation
 reduction <- function(data){
   data_reduit <-data[seq(1, nrow(data), by=1000),]
   return(data_reduit)
 }
 Regres <- function(data, data1, data2){
   ggplot(data, mapping = aes(x=data[[data1]], y=data[[data2]])) + geom_point(color = "steelblue", size=3.5)+
-  labs(title=paste("scatter diagram :",data1,"and",data2), x =data1 , y= data2)+
-  geom_smooth(method='lm')
+  labs(title=paste("scatter diagram :",data1,"and",data2), x =data1 , y= data2)
 }
-
-
-
-
-
-
-###TEST ALEX
-histo_VesselType_mean <- function(){
-
-  #Histo VT and Width
-  Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
-  print(Width_y)
-  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
-    geom_bar(stat="identity", fill="steelblue")+
-    geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-    labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
-    theme_minimal()
-  
-  #Histo VT and Draft
-  Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
-  print(Draft_y)
-  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
-    geom_bar(stat="identity", fill="steelblue")+
-    geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-    labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
-    theme_minimal()
-  
-  #Histo VT and Length
-  Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
-  print(Length_y)
-  ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
-    geom_bar(stat="identity", fill="steelblue")+
-    geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
-    labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
-    theme_minimal()
-}
-
-
-### TEST
-
-#1-1 description données
-data <- vessel.total.clean
-head(data)
-str(data)
-summary(data)
-skim(data)
-
-#1-2 Nettoyage données
-data[data == "\\N"]<-NA
-View(data)
-cat("il y a",nrow(data),"lignes initialement")
-doublons<-doublon(data = data)
-med <- med(doublons)
-nettoy <- nettoyer_donnees(doublons)
-cat("il y a",nrow(nettoy),"lignes.")
-aber <- val_aber(nettoy)
-View(aber)
-#2-1 Carte Graphique Golf du Mexique
-
-#2-2 Histograme
 
 ##Khi2
 test_khi <- function(data, param){
@@ -407,8 +380,6 @@ test_khi <- function(data, param){
   khi2_result <- chisq.test(contingency_table)
   return(khi2_result)
 }
-print(test_khi(aber,"Cargo"))
-
 
 ###Prediction VesselType
 prediction <- function(pred){
@@ -451,27 +422,37 @@ prediction <- function(pred){
     select(VesselType) %>%
     bind_cols(pred_class, pred_proba)
   
-  accuracy(results, truth = VesselType, estimate = .pred_class)
+  print(accuracy(results, truth = VesselType, estimate = .pred_class))
   
   conf_mat(results, truth = VesselType,
            estimate = .pred_class)
 }
 
-## TEST
-main <- function(){
-  data = init()
-  print(nrow(data))
-  doublons<-doublon(data)
-  med <- med(doublons)
-  nettoy <- nettoyer_donnees(doublons)
-  print(nrow(nettoy))
-  aber <- val_aber(nettoy)
-  View(aber)
-  
-  afficher_ports_top(data = data, villes = villes)
-  
-  shinyApp(ui = ui, server = server)
-  plot_top_vessel_types_by_range(data_nettoyer, top_n = 3)  
-  plot_camembert(data_nettoyer)
-}
+###Main
+data <- init_data()
+villes <- init_villes()
+data_description(data)
+doublons<-doublon(data)
+med <- med(doublons)
+nettoy <- nettoyer_donnees(doublons)
+aber <- val_aber(nettoy)
 
+data_clean <- aber
+
+plot_top_vessel_types_by_range(data_clean, top_n = 3)
+plot_camembert(data_clean)
+afficher_ports_top(data = data, villes = villes)
+histo_VesselType_mean(med)
+
+corr_mat(data_clean)
+red <- reduction(data_clean)
+Regres(red, 'Width', 'Length')
+Regres(red, 'Draft', 'Length')
+Regres(red, 'Width', 'Draft')
+
+print(test_khi(data_clean, 'Cargo'))
+print(test_khi(data_clean, 'Status'))
+
+prediction(data_clean)
+
+map_init(data_clean, villes)
