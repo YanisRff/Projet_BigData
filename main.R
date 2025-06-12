@@ -151,6 +151,7 @@ val_aber <- function(data = data){
 
 
 ###Affichage graphiques
+
 ## histogramme par type de bateaux
 top_n <-10
 plot_data <- data_nettoyer %>%
@@ -208,7 +209,6 @@ afficher_ports_top <- function(data,villes){
     theme_minimal()
   
 }
-
 
 
 ###Affichage map
@@ -433,3 +433,53 @@ afficher_ports_top(data = data, villes = villes)
 
 shinyApp(ui = ui, server = server)
 
+plot_top_vessel_types_by_range <- function(data_nettoyer, top_n = 3) {
+  
+  data <- data_nettoyer %>%
+    mutate(VesselType_grouped = case_when(
+      VesselType >= 60 & VesselType <= 69 ~ "passenger",
+      VesselType >= 70 & VesselType <= 79 ~ "cargo",
+      VesselType >= 80 & VesselType <= 89 ~ "tanker",
+    ))
+  
+  plot_data <- data %>%
+    group_by(VesselType_grouped) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    arrange(desc(count)) %>%
+    slice_head(n = top_n)
+  
+  ggplot(plot_data, aes(x = reorder(VesselType_grouped, -count), y = count, fill = VesselType_grouped)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
+    labs(
+      title = paste("Top", top_n, "types de bateaux regroupés par plage VesselType"),x = "Type de bateau",y = "Nombre d'observations") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+}
+plot_top_vessel_types_by_range(data_nettoyer, top_n = 3)  
+
+#fonction pour camembert en fct des types
+plot_camembert <- function(data_nettoyer){
+  data <- data_nettoyer %>%
+    mutate(VesselType_grouped = case_when(
+      VesselType >= 60 & VesselType <= 69 ~ "passenger",
+      VesselType >= 70 & VesselType <= 79 ~ "cargo",
+      VesselType >= 80 & VesselType <= 89 ~ "tanker",
+    ))
+  camembert_data <- data%>%
+    group_by(VesselType_grouped) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    mutate(percentage = round(100 * count / sum(count), 1),
+           label = paste0(VesselType_grouped, " (", percentage, "%)"))
+  
+  ggplot(camembert_data, aes(x = "", y = count, fill = VesselType_grouped)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar("y", start = 0) +
+    scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
+    geom_text(aes(label = label), position = position_stack(vjust = 0.5)) +
+    labs(title = "Répartition des types de bateaux (camembert)", x = "", y = "") +
+    theme_void() + 
+    theme(legend.position = "none")
+
+}
+plot_camembert(data_nettoyer)
