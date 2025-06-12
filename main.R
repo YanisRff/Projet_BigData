@@ -1,4 +1,4 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
@@ -7,6 +7,7 @@ library(maps)
 library(tibble)
 library(purrr)
 library(viridis)
+library(corrplot)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 data <- vessel.total.clean
@@ -76,6 +77,8 @@ med <- function(data) {
   data$Cargo <- as.numeric(as.character(data$Cargo))
   data$Width <- as.numeric(as.character(data$Width))
   data$Draft <- as.numeric(as.character(data$Draft))
+  data$Length <- as.numeric(as.character(data$Length))
+  
   
   # mediane cargo selon type 
   data$Cargo[data$Cargo == 0 & data$VesselType >= 60 & data$VesselType <= 69] <- NA
@@ -98,6 +101,14 @@ med <- function(data) {
   moy_d_70 <- mean(data$Draft[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
   moy_d_80 <- mean(data$Draft[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
   
+  #moyenne length selon type
+  
+  moy_l_60 <- mean(data$Length[data$VesselType>=60 & data$VesselType<=69], na.rm = TRUE)
+  moy_l_70 <- mean(data$Length[data$VesselType>=70 & data$VesselType<=79], na.rm = TRUE)
+  moy_l_80 <- mean(data$Length[data$VesselType>=80 & data$VesselType<=89], na.rm = TRUE)
+  
+
+  
   
   list(
     med_cargo1 = med_cargo1,
@@ -110,11 +121,13 @@ med <- function(data) {
     moy_d_50 = moy_d_50,
     moy_d_60 = moy_d_60,
     moy_d_70 = moy_d_70,
-    moy_d_80 = moy_d_80
+    moy_d_80 = moy_d_80,
+    moy_l_60 = moy_l_60,
+    moy_l_70 = moy_l_70,
+    moy_l_80 = moy_l_80
   )
 }
  
-
 
 val_aber <- function(data = data){
   n <- nrow(data)
@@ -180,6 +193,18 @@ ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux))
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
  
+##Affichage utilisation ports
+afficher_ports_top <- function(data,villes){
+  ports_count <- get_ville_counts(data, villes)
+  print(ports_count)
+  ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5) + 
+    labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence")
+    theme_minimal()
+  
+}
+
 
 
 ###Affichage map
@@ -276,19 +301,59 @@ server <- function(input, output) {
   })
 }
 
+###Etude des corrélations
+##Matrice de corrélations
+df_corr <- data[, c("MMSI", "LAT", "LON", "SOG", "COG", "Heading", "VesselType", "Status", "Length", "Width", "Draft", "Cargo")]
+df_corr <- as.data.frame(lapply(df_corr, function(x) as.numeric(as.character(x))))
+df_corr_clean <- na.omit(df_corr)
+mat_corr <- cor(df_corr_clean)
+library(ggcorrplot)
+ggcorrplot(mat_corr, lab=TRUE,hc.order = TRUE,
+           outline.color = "white",
+           ggtheme = ggplot2::theme_gray,
+           colors = c("#6D9EFF", "white", "#E46726"), lab_size = 3, title = "Matrice de corrélation")
+
+###TEST ALEX
+
+Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
+print(Width_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = Width_y)) + 
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=round(Width_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Width", x = "VesselType", y= "Width")+
+  theme_minimal()
+
+Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
+print(Draft_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
+  geom_bar(stat="identity", fill="darkred")+
+  geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
+  theme_minimal()
+
+Length_y = c(med$moy_l_60, med$moy_l_70, med$moy_l_80)
+print(Length_y)
+ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = Length_y)) + 
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=round(Length_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
+  labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
+  theme_minimal()
+  
+
 
 ### TEST
+data <- vessel.total.clean
 data[data == "\\N"]<-NA
 View(data)
 print(nrow(data))
 doublons<-doublon(data = data)
 med <- med(doublons)
-nettoy <- nettoyer_données(doublons)
+nettoy <- nettoyer_donnees(doublons)
 print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
 
-
+afficher_ports_top(data = data, villes = villes)
 
 shinyApp(ui = ui, server = server)
 
