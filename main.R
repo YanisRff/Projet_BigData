@@ -1,4 +1,4 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot", "readr", "tidymodels", "glmnet"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
@@ -8,6 +8,10 @@ library(tibble)
 library(purrr)
 library(viridis)
 library(corrplot)
+library(readr)
+library(tidymodels)
+library(glmnet)
+
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 data <- vessel.total.clean
@@ -148,6 +152,65 @@ val_aber <- function(data = data){
 
 ###Affichage graphiques
 
+## histogramme par type de bateaux
+top_n <-10
+plot_data <- data_nettoyer %>%
+      group_by(VesselType) %>%
+      summarise(count = n()) %>% # compte le nbre de bateau par type
+      arrange(desc(count)) %>% # tri du + frequent au moins
+      slice_head(n = top_n) # affiche les 1ere categorie avec le + grand nbre
+    
+ggplot(plot_data, aes(x = reorder(VesselType, -count), y= count)) + 
+      geom_bar(stat = "identity", fill = "pink") + 
+      labs(title = paste("Top", top_n, "types de bateaux"), x= "Type des bateau", y= "Nombre d'observations") +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## histogramme par affluence des ports
+LON_ports <- c(-98.4951405, -95.3676974, -81.3790304, -82.458444, -80.19362, -82.3589631, -86.8425761, -89.6237402)
+LAT_ports <- c(29.4246002, 29.7589382, 28.5421109, 27.9477595, 25.7741728, 23.135305, 21.1527467, 20.9670759)
+
+# Crée un tableau des ports
+ports <- tibble(LAT = LAT_ports, LON = LON_ports)
+
+# Garder les lignes correspondant à ces coord avec tolerance de 0.05
+expanded <- data_nettoyer %>%
+  tidyr::crossing(ports, .name_repair = "unique")
+colnames(expanded)
+
+
+filtered_data <- expanded %>%
+  filter(abs(LAT - LAT1) < 0.05 & abs(LON - LON1) < 0.05) %>%
+  distinct(across(names(data_nettoyer)))
+
+
+#compte le nbre de bateaux
+plot_data <- filtered_data %>%
+  group_by(LAT, LON) %>%
+  summarise(nb_bateaux = n_distinct(MMSI), .groups = "drop") %>%
+  arrange(desc(nb_bateaux)) 
+  
+
+ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(
+    title = "Ports les plus fréquentés(selon coord)", x= "Ports", y = "Nombre de bateaux uniques") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ 
+##Affichage utilisation ports
+afficher_ports_top <- function(data,villes){
+  ports_count <- get_ville_counts(data, villes)
+  print(ports_count)
+  ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5) + 
+    labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence") +
+    theme_minimal()
+  
+}
+
+
 ###Affichage map
 sorted_data <- data %>% arrange(desc(BaseDateTime))
 
@@ -280,7 +343,79 @@ ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = 
   labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
   theme_minimal()
   
+###Khi2
+test_khi <- function(data, param){
+  passagers <- data[data$VesselType >= 60 & data$VesselType <= 69, param]
+  cargo <- data[data$VesselType >= 70 & data$VesselType <= 79, param]
+  tanker <- data[data$VesselType >= 80 & data$VesselType <= 89, param]
+  freq_passagers <- table(passagers)
+  freq_cargo <- table(cargo)
+  freq_tanker <- table(tanker)
+  all_modalities <- sort(unique(c(names(freq_passagers), names(freq_cargo), names(freq_tanker))))
+  contingency_table <- rbind(
+    passagers = as.numeric(freq_passagers[all_modalities]),
+    cargo     = as.numeric(freq_cargo[all_modalities]),
+    tanker    = as.numeric(freq_tanker[all_modalities])
+  )
+  contingency_table[is.na(contingency_table)] <- 0
+  colnames(contingency_table) <- all_modalities
+  mosaicplot(contingency_table, main = paste(param, "& VesselType Mosaic Plot"),
+             xlab = "VesselType",
+             ylab = param,
+             las = 1,
+             shade = TRUE,
+             off = 30)
+  khi2_result <- chisq.test(contingency_table)
+  return(khi2_result)
+}
+print(test_khi(aber,"Cargo"))
 
+
+###Prediction VesselType
+pred <- aber
+pred$VesselType = as.factor(aber$VesselType)
+set.seed(421)
+split <- initial_split(pred, prop = 0.8, strata = VesselType)
+train <- split %>% 
+  training()
+test <- split %>% 
+  testing()
+train_clean <- train %>%
+  select(-id, -MMSI, -BaseDateTime, -VesselName, -IMO, -CallSign, -LAT, -LON, -TransceiverClass)
+train_clean$Cargo <- as.numeric(train_clean$Cargo)
+train_clean$Status <- as.numeric(train_clean$Status)
+train_clean$Length <- as.numeric(train_clean$Length)
+train_clean$Width <- as.numeric(train_clean$Width)
+train_clean$Draft <- as.numeric(train_clean$Draft)
+
+test$Cargo <- as.numeric(test$Cargo)
+test$Status <- as.numeric(test$Status)
+test$Length <- as.numeric(test$Length)
+test$Width <- as.numeric(test$Width)
+test$Draft <- as.numeric(test$Draft)
+
+table(train_clean$VesselType)
+model <- multinom_reg(mixture = double(1), penalty = double(1)) %>%
+  set_engine("glmnet") %>%
+  set_mode("classification") %>%
+  fit(VesselType ~ ., data = train_clean)
+
+tidy(model)
+summary(model)
+# Class Predictions
+pred_class <- predict(model,
+                      new_data = test,
+                      type = "class")
+
+# Class Probabilities
+pred_proba <- predict(model,
+                      new_data = test,
+                      type = "prob")
+results <- test %>%
+  select(VesselType) %>%
+  bind_cols(pred_class, pred_proba)
+
+accuracy(results, truth = VesselType, estimate = .pred_class)
 
 ### TEST
 data <- vessel.total.clean
