@@ -289,6 +289,22 @@ server <- function(input, output) {
 }
 
 
+### Regress Linear & Correlation
+
+reduction <- function(data){
+  data_reduit <-data[seq(1, nrow(data), by=1000),]
+  return(data_reduit)
+}
+Regres <- function(data, data1, data2){
+  ggplot(mapping = aes(x=data1, y=data2)) + geom_point(color = "steelblue", size=3.5)+
+  labs(title=colnames(data), x = colnames(data1), y= names(data2))
+}
+print(colnames(red$SOG))
+
+
+
+
+
 ###TEST ALEX
 
 Width_y = c(med$moy_w_60, med$moy_w_70, med$moy_w_80)
@@ -302,7 +318,7 @@ ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Width_y), y = W
 Draft_y = c(med$moy_d_60, med$moy_d_70, med$moy_d_80)
 print(Draft_y)
 ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Draft_y), y = Draft_y)) + 
-  geom_bar(stat="identity", fill="darkred")+
+  geom_bar(stat="identity", fill="steelblue")+
   geom_text(aes(label=round(Draft_y, digits = 1)), vjust=1.6, color="white", size=3.5)+
   labs(title="Bar Plot between VesselType and Draft", x = "VesselType", y= "Draft")+
   theme_minimal()
@@ -329,6 +345,11 @@ print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
 
+
+red <- reduction(aber)
+Regres(red, red$Width, red$Length)
+Regres(red, red$Width, red$Draft)
+Regres(red, red$Draft, red$Length)
 
 
 shinyApp(ui = ui, server = server)
