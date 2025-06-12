@@ -383,7 +383,7 @@ test_khi <- function(data, param){
 
 ###Prediction VesselType
 prediction <- function(pred){
-  pred$VesselType = as.factor(aber$VesselType)
+  pred$VesselType = as.factor(pred$VesselType)
   set.seed(421)
   split <- initial_split(pred, prop = 0.8, strata = VesselType)
   train <- split %>% 
