@@ -1,4 +1,4 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
@@ -7,6 +7,7 @@ library(maps)
 library(tibble)
 library(purrr)
 library(viridis)
+library(corrplot)
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 data <- vessel.total.clean
@@ -192,6 +193,18 @@ ggplot(plot_data, aes(x = reorder(paste(LAT,LON), -nb_bateaux), y = nb_bateaux))
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
  
+##Affichage utilisation ports
+afficher_ports_top <- function(data,villes){
+  ports_count <- get_ville_counts(data, villes)
+  print(ports_count)
+  ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
+    geom_bar(stat="identity", fill="steelblue")+
+    geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5) + 
+    labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence")
+    theme_minimal()
+  
+}
+
 
 
 ###Affichage map
@@ -288,6 +301,17 @@ server <- function(input, output) {
   })
 }
 
+###Etude des corrélations
+##Matrice de corrélations
+df_corr <- data[, c("MMSI", "LAT", "LON", "SOG", "COG", "Heading", "VesselType", "Status", "Length", "Width", "Draft", "Cargo")]
+df_corr <- as.data.frame(lapply(df_corr, function(x) as.numeric(as.character(x))))
+df_corr_clean <- na.omit(df_corr)
+mat_corr <- cor(df_corr_clean)
+library(ggcorrplot)
+ggcorrplot(mat_corr, lab=TRUE,hc.order = TRUE,
+           outline.color = "white",
+           ggtheme = ggplot2::theme_gray,
+           colors = c("#6D9EFF", "white", "#E46726"), lab_size = 3, title = "Matrice de corrélation")
 
 ### Regress Linear & Correlation
 
@@ -345,12 +369,7 @@ print(nrow(nettoy))
 aber <- val_aber(nettoy)
 View(aber)
 
-
-red <- reduction(aber)
-Regres(red, red$Width, red$Length)
-Regres(red, red$Width, red$Draft)
-Regres(red, red$Draft, red$Length)
-
+afficher_ports_top(data = data, villes = villes)
 
 shinyApp(ui = ui, server = server)
 
