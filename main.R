@@ -50,12 +50,10 @@ doublon <- function(data) {
 nettoyer_donnees <- function(data) {
 
   #3 remplace les NA dans width, draft et cargo par la moyenne ou la mediane
-  data$Width[is.na(data$Width)  & data$VesselType <60] <- med$moy_d_50
   data$Width[is.na(data$Width)  & data$VesselType >= 60 & data$VesselType <= 69] <- med$moy_d_60
   data$Width[is.na(data$Width)  & data$VesselType >= 70 & data$VesselType <= 79] <- med$moy_d_70
   data$Width[is.na(data$Width)  & data$VesselType >= 80 & data$VesselType <= 89] <- med$moy_d_80
   
-  data$Draft[is.na(data$Draft)  & data$VesselType<60] <- med$moy_w_50
   data$Draft[is.na(data$Draft)  & data$VesselType >= 60 & data$VesselType <= 69] <- med$moy_w_60
   data$Draft[is.na(data$Draft)  & data$VesselType >= 70 & data$VesselType <= 79] <- med$moy_w_70
   data$Draft[is.na(data$Draft)  & data$VesselType >= 80 & data$VesselType <= 89] <- med$moy_w_80
@@ -69,7 +67,7 @@ nettoyer_donnees <- function(data) {
 
 
 ###Gestion des aberrations
-n <- nrow(data)
+
 
 
 med <- function(data) {
@@ -90,13 +88,11 @@ med <- function(data) {
   med_cargo3 <- median(data$Cargo[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
   
   # moyenne width selon type 
-  moy_w_50 <- mean(data$Width[data$VesselType < 60], na.rm = TRUE)
   moy_w_60 <- mean(data$Width[data$VesselType >= 60 & data$VesselType <= 69], na.rm = TRUE)
   moy_w_70 <- mean(data$Width[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
   moy_w_80 <- mean(data$Width[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
   
   # moyenne draft selon type 
-  moy_d_50 <- mean(data$Draft[data$VesselType < 60], na.rm = TRUE)
   moy_d_60 <- mean(data$Draft[data$VesselType >= 60 & data$VesselType <= 69], na.rm = TRUE)
   moy_d_70 <- mean(data$Draft[data$VesselType >= 70 & data$VesselType <= 79], na.rm = TRUE)
   moy_d_80 <- mean(data$Draft[data$VesselType >= 80 & data$VesselType <= 89], na.rm = TRUE)
@@ -114,11 +110,9 @@ med <- function(data) {
     med_cargo1 = med_cargo1,
     med_cargo2 = med_cargo2,
     med_cargo3 = med_cargo3,
-    moy_w_50 = moy_w_50,
     moy_w_60 = moy_w_60,
     moy_w_70 = moy_w_70,
     moy_w_80 = moy_w_80,
-    moy_d_50 = moy_d_50,
     moy_d_60 = moy_d_60,
     moy_d_70 = moy_d_70,
     moy_d_80 = moy_d_80,
@@ -131,20 +125,20 @@ med <- function(data) {
 
 val_aber <- function(data = data){
   n <- nrow(data)
-  print(nrow(data))
+  cat("il y a",nrow(data),"lignes avant le tri des val aberrantes","\n")
   
   #subset -> donne condition sur df, si condition pas respecté, donnee non copié, marche comme un filtre
-  data_filtered <- subset(data,Draft>=0.5  & Width>=3 & Length >=10 & SOG <36)
+  data_filtered <- subset(data,LAT >= 20 & LAT <= 30 & LON >= (-98) & LON <= (-78) & Draft>=0.5  & Width>=3 & Length >=10 & SOG <36)
 
   data_filtered$SOG[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
   data_filtered$COG[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
   data_filtered$Heading[data_filtered$SOG == 0 | data_filtered$COG == 0 | data_filtered$Heading == 0]<-0
   
   
-  print(nrow(data_filtered))
+  cat("il y a",nrow(data_filtered),"lignes apres le tri des val aberrantes")
   return(data_filtered)
   }
-
+aber <- val_aber(nettoy)
 
 ###Affichage graphiques
 ## histogramme par type de bateaux
@@ -320,10 +314,11 @@ reduction <- function(data){
   return(data_reduit)
 }
 Regres <- function(data, data1, data2){
-  ggplot(mapping = aes(x=data1, y=data2)) + geom_point(color = "steelblue", size=3.5)+
-  labs(title=colnames(data), x = colnames(data1), y= names(data2))
+  ggplot(data, mapping = aes(x=data[[data1]], y=data[[data2]])) + geom_point(color = "steelblue", size=3.5)+
+  labs(title=paste("scatter diagram :",data1,"and",data2), x =data1 , y= data2)+
+  geom_smooth(method='lm')
 }
-print(colnames(red$SOG))
+
 
 
 
@@ -358,16 +353,33 @@ ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = 
 
 
 ### TEST
+
+#1-1 description données
 data <- vessel.total.clean
+head(data)
+str(data)
+summary(data)
+skim(data)
+
+#1-2 Nettoyage données
 data[data == "\\N"]<-NA
 View(data)
-print(nrow(data))
+cat("il y a",nrow(data),"lignes initialement")
 doublons<-doublon(data = data)
 med <- med(doublons)
 nettoy <- nettoyer_donnees(doublons)
-print(nrow(nettoy))
+cat("il y a",nrow(nettoy),"lignes.")
 aber <- val_aber(nettoy)
 View(aber)
+#2-1 Carte Graphique Golf du Mexique
+
+#2-2 Histograme
+
+red <- reduction(aber)
+Regres(red, red$Width, red$Length)
+Regres(red, red$Width, red$Draft)
+Regres(red, red$Draft, red$Length)
+
 
 afficher_ports_top(data = data, villes = villes)
 
