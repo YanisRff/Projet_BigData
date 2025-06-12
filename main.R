@@ -1,4 +1,4 @@
-install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot"))
+install.packages(c("skimr","dplyr","ggplot2", "shiny", "maps","tibble","purrr", "viridis", "corrplot", "readr", "tidymodels", "glmnet"))
 library(skimr)
 library(dplyr)
 library(ggplot2)
@@ -8,6 +8,10 @@ library(tibble)
 library(purrr)
 library(viridis)
 library(corrplot)
+library(readr)
+library(tidymodels)
+library(glmnet)
+
 
 data <- read.csv("~/Documents/cours/A3/S6/Projets/Projet_BigData/vessel-total-clean.csv")
 data <- vessel.total.clean
@@ -200,7 +204,7 @@ afficher_ports_top <- function(data,villes){
   ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
     geom_bar(stat="identity", fill="steelblue")+
     geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5) + 
-    labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence")
+    labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence") +
     theme_minimal()
   
 }
@@ -339,7 +343,79 @@ ggplot(mapping =aes(x = reorder(c("Passager", "Cargo", "Tanker"),Length_y), y = 
   labs(title="Bar Plot between VesselType and Length", x = "VesselType", y= "Length")+
   theme_minimal()
   
+###Khi2
+test_khi <- function(data, param){
+  passagers <- data[data$VesselType >= 60 & data$VesselType <= 69, param]
+  cargo <- data[data$VesselType >= 70 & data$VesselType <= 79, param]
+  tanker <- data[data$VesselType >= 80 & data$VesselType <= 89, param]
+  freq_passagers <- table(passagers)
+  freq_cargo <- table(cargo)
+  freq_tanker <- table(tanker)
+  all_modalities <- sort(unique(c(names(freq_passagers), names(freq_cargo), names(freq_tanker))))
+  contingency_table <- rbind(
+    passagers = as.numeric(freq_passagers[all_modalities]),
+    cargo     = as.numeric(freq_cargo[all_modalities]),
+    tanker    = as.numeric(freq_tanker[all_modalities])
+  )
+  contingency_table[is.na(contingency_table)] <- 0
+  colnames(contingency_table) <- all_modalities
+  mosaicplot(contingency_table, main = paste(param, "& VesselType Mosaic Plot"),
+             xlab = "VesselType",
+             ylab = param,
+             las = 1,
+             shade = TRUE,
+             off = 30)
+  khi2_result <- chisq.test(contingency_table)
+  return(khi2_result)
+}
+print(test_khi(aber,"Cargo"))
 
+
+###Prediction VesselType
+pred <- aber
+pred$VesselType = as.factor(aber$VesselType)
+set.seed(421)
+split <- initial_split(pred, prop = 0.8, strata = VesselType)
+train <- split %>% 
+  training()
+test <- split %>% 
+  testing()
+train_clean <- train %>%
+  select(-id, -MMSI, -BaseDateTime, -VesselName, -IMO, -CallSign, -LAT, -LON, -TransceiverClass)
+train_clean$Cargo <- as.numeric(train_clean$Cargo)
+train_clean$Status <- as.numeric(train_clean$Status)
+train_clean$Length <- as.numeric(train_clean$Length)
+train_clean$Width <- as.numeric(train_clean$Width)
+train_clean$Draft <- as.numeric(train_clean$Draft)
+
+test$Cargo <- as.numeric(test$Cargo)
+test$Status <- as.numeric(test$Status)
+test$Length <- as.numeric(test$Length)
+test$Width <- as.numeric(test$Width)
+test$Draft <- as.numeric(test$Draft)
+
+table(train_clean$VesselType)
+model <- multinom_reg(mixture = double(1), penalty = double(1)) %>%
+  set_engine("glmnet") %>%
+  set_mode("classification") %>%
+  fit(VesselType ~ ., data = train_clean)
+
+tidy(model)
+summary(model)
+# Class Predictions
+pred_class <- predict(model,
+                      new_data = test,
+                      type = "class")
+
+# Class Probabilities
+pred_proba <- predict(model,
+                      new_data = test,
+                      type = "prob")
+results <- test %>%
+  select(VesselType) %>%
+  bind_cols(pred_class, pred_proba)
+
+accuracy(results, truth = VesselType, estimate = .pred_class)
 
 ### TEST
 data <- vessel.total.clean
