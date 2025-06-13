@@ -165,13 +165,15 @@ plot_top_vessel_types_by_range <- function(data_nettoyer, top_n = 3) {
     arrange(desc(count)) %>%
     slice_head(n = top_n)
   
-  ggplot(plot_data, aes(x = reorder(VesselType_grouped, -count), y = count, fill = VesselType_grouped)) +
+  top_bateau <- ggplot(plot_data, aes(x = reorder(VesselType_grouped, -count), y = count, fill = VesselType_grouped)) +
     geom_bar(stat = "identity") +
     scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
     labs(
       title = paste("Top", top_n, "types de bateaux regroupés par plage VesselType"),x = "Type de bateau",y = "Nombre d'observations") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+  dev.new()
+  print(top_bateau)
 }
 
 ##Top des bateaux camembert
@@ -188,7 +190,7 @@ plot_camembert <- function(data_nettoyer){
     mutate(percentage = round(100 * count / sum(count), 1),
            label = paste0(VesselType_grouped, " (", percentage, "%)"))
   
-  ggplot(camembert_data, aes(x = "", y = count, fill = VesselType_grouped)) +
+  camembert <- ggplot(camembert_data, aes(x = "", y = count, fill = VesselType_grouped)) +
     geom_bar(stat = "identity", width = 1) +
     coord_polar("y", start = 0) +
     scale_fill_manual(values = c("passenger" = "pink", "cargo" = "green", "tanker" = "yellow")) +
@@ -196,7 +198,8 @@ plot_camembert <- function(data_nettoyer){
     labs(title = "Répartition des types de bateaux (camembert)", x = "", y = "") +
     theme_void() + 
     theme(legend.position = "none")
-  
+  dev.new()
+  print(camembert)
 }
 
 ##Affichage utilisation ports
@@ -215,11 +218,13 @@ get_ville_counts <- function(traj, villes, radius = 1) {
 afficher_ports_top <- function(data,villes){
   ports_count <- get_ville_counts(data, villes)
   print(ports_count)
-  ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
+  top_ports <- ggplot(ports_count, aes(x = reorder(nom,-nb_passages), y = nb_passages)) + 
     geom_bar(stat="identity", fill="steelblue")+
     geom_text(aes(label=nb_passages), vjust=1.6, color="white", size=3.5) + 
     labs(title = "Ports les plus utilisées", x = "Ports", y = "Affluence") +
     theme_minimal()
+  dev.new()
+  print(top_ports)
   
 }
 
@@ -349,10 +354,12 @@ corr_mat <- function(data){
   df_corr_clean <- na.omit(df_corr)
   mat_corr <- cor(df_corr_clean)
   library(ggcorrplot)
-  ggcorrplot(mat_corr, lab=TRUE,hc.order = TRUE,
+  cor_mat <- ggcorrplot(mat_corr, lab=TRUE,hc.order = TRUE,
              outline.color = "white",
              ggtheme = ggplot2::theme_gray,
              colors = c("#6D9EFF", "white", "#E46726"), lab_size = 3, title = "Matrice de corrélation")
+  dev.new()
+  print(cor_mat)
 }
 
 ##Regress Linear & Correlation
@@ -361,8 +368,10 @@ reduction <- function(data){
   return(data_reduit)
 }
 Regres <- function(data, data1, data2){
-  ggplot(data, mapping = aes(x=data[[data1]], y=data[[data2]])) + geom_point(color = "steelblue", size=3.5)+
+  reg <- ggplot(data, mapping = aes(x=data[[data1]], y=data[[data2]])) + geom_point(color = "steelblue", size=3.5)+
   labs(title=paste("scatter diagram :",data1,"and",data2), x =data1 , y= data2)
+  dev.new()
+  print(reg)
 }
 
 ##Khi2
@@ -381,7 +390,7 @@ test_khi <- function(data, param){
   )
   contingency_table[is.na(contingency_table)] <- 0
   colnames(contingency_table) <- all_modalities
-  mosaicplot(contingency_table, main = paste(param, "& VesselType Mosaic Plot"),
+  mosaic <- mosaicplot(contingency_table, main = paste(param, "& VesselType Mosaic Plot"),
              xlab = "VesselType",
              ylab = param,
              las = 1,
@@ -389,6 +398,8 @@ test_khi <- function(data, param){
              off = 30)
   khi2_result <- chisq.test(contingency_table)
   return(khi2_result)
+  dev.new()
+  print(mosaic)
 }
 
 ###Prediction VesselType
@@ -437,6 +448,8 @@ prediction <- function(pred){
   conf_mat(results, truth = VesselType,
            estimate = .pred_class)
 }
+
+
 
 ###Main
 data <- init_data()
